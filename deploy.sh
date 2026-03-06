@@ -117,7 +117,23 @@ deploy_lambda() {
   # 4. Install npm dependencies and zip
   step "Packaging"
   echo "   Installing npm dependencies..."
-  npm install --prefix "$LAMBDA_DIR" --omit=dev --silent
+  # Ensure clean install on every deploy to avoid leaking local binaries.
+  rm -rf "$LAMBDA_DIR/node_modules"
+
+  # If the lambda uses sharp, install Linux x64 optional binaries so the
+  # package works in AWS Lambda runtime (linux-x64).
+  if [[ -f "$LAMBDA_DIR/package.json" ]] && grep -q '"sharp"' "$LAMBDA_DIR/package.json"; then
+    echo "   Detected sharp dependency. Installing linux-x64 optional binaries..."
+    npm install \
+      --prefix "$LAMBDA_DIR" \
+      --omit=dev \
+      --include=optional \
+      --os=linux \
+      --cpu=x64 \
+      --silent
+  else
+    npm install --prefix "$LAMBDA_DIR" --omit=dev --silent
+  fi
   echo "   Creating zip..."
   rm -f "$ZIP_PATH"
   (cd "$LAMBDA_DIR" && zip -r "$ZIP_PATH" . \
